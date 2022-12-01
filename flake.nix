@@ -1,7 +1,10 @@
 {
-  description = "A nixos module to configure helm charts to be installed into k3s";
+  description = "A set of nixos modules to simplify kubernetes management.";
 
   outputs = { self, nixpkgs }: {
-    nixosModule = import ./helm.nix;
+    nixosModules = {
+      helm = import ./helm.nix;
+      k3s = import ./k3s.nix;
+    };
   };
 }

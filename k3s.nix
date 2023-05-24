@@ -21,6 +21,11 @@ with lib;
         type = with types; uniq string;
         default = config.networking.hostName;
       };
+      
+      clusterDomain = mkOption {
+        type = with types; uniq string;
+        default = "${cfg.nodeName}.k8s.prod.zone";
+      };
 
       clusterCIDR = mkOption {
         type = with types; uniq string;
@@ -112,7 +117,7 @@ with lib;
           "--cluster-cidr ${finalClusterCIDR}"
           "--service-cidr ${finalServiceCIDR}"
           "--cluster-dns ${cfg.clusterDNS}"
-          "--cluster-domain ${cfg.nodeName}.k8s.prod.zone"
+          "--cluster-domain ${cfg.clusterDomain}"
           "--disable servicelb"
           "--disable traefik"
         ]

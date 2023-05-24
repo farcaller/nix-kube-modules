@@ -2,6 +2,7 @@
 
 let
   cfg = config.services.k3sManaged;
+  k3cfg = config.services.k3s;
 in
 
 with lib;
@@ -105,33 +106,41 @@ with lib;
     let
       finalClusterCIDR = cfg.clusterCIDR + (if cfg.clusterCIDRv6 != "" then ",${cfg.clusterCIDRv6}" else "");
       finalServiceCIDR = cfg.serviceCIDR + (if cfg.serviceCIDRv6 != "" then ",${cfg.serviceCIDRv6}" else "");
+      isAgent = k3cfg.role == "agent";
     in
     mkIf cfg.enable {
       networking.firewall.trustedInterfaces = mkIf (!cfg.disableFlannel) [ "cni0" ];
       environment.systemPackages = [ cfg.package ];
       services.k3s.enable = true;
       services.k3s.package = cfg.package;
-      services.k3s.extraFlags = builtins.toString (
-        [
-          "--node-name ${cfg.nodeName}"
-          "--cluster-cidr ${finalClusterCIDR}"
-          "--service-cidr ${finalServiceCIDR}"
-          "--cluster-dns ${cfg.clusterDNS}"
-          "--cluster-domain ${cfg.clusterDomain}"
-          "--disable servicelb"
-          "--disable traefik"
-        ]
-        ++ (optional (cfg.tlsSAN != "") "--tls-san ${cfg.tlsSAN}")
-        ++ (optional (cfg.nodeIP != "") "--node-ip ${cfg.nodeIP}")
-        ++ (optional cfg.disableLocalPV "--disable local-storage")
-        ++ (optional cfg.disableMetricsServer "--disable metrics-server")
-        ++ (if cfg.disableFlannel
-        then [ "--flannel-backend none --disable-network-policy" ]
-        else [ "--flannel-backend host-gw" ])
-        ++ (optional cfg.disableKubeProxy "--disable-kube-proxy")
-        ++ (optional cfg.zfs "--container-runtime-endpoint unix:///run/containerd/containerd.sock")
-        ++ (optional (cfg.apiServerArgs != "") (toString (map (s: "--kube-apiserver-arg ${s}") cfg.apiServerArgs)))
-      );
+      services.k3s.extraFlags = builtins.toString
+        (
+          [ "--node-name ${cfg.nodeName}" ]
+          ++ (optional (cfg.nodeIP != "") "--node-ip ${cfg.nodeIP}")
+          ++ (optional cfg.zfs "--container-runtime-endpoint unix:///run/containerd/containerd.sock")
+          ++ (if (isAgent == false) then
+            (
+              [
+                "--cluster-cidr ${finalClusterCIDR}"
+                "--service-cidr ${finalServiceCIDR}"
+                "--cluster-dns ${cfg.clusterDNS}"
+                "--cluster-domain ${cfg.clusterDomain}"
+                "--disable servicelb"
+                "--disable traefik"
+              ]
+              ++ (optional (cfg.tlsSAN != "") "--tls-san ${cfg.tlsSAN}")
+              ++ (optional cfg.disableLocalPV "--disable local-storage")
+              ++ (optional cfg.disableMetricsServer "--disable metrics-server")
+              ++ (
+                if cfg.disableFlannel
+                then [ "--flannel-backend none --disable-network-policy" ]
+                else [ "--flannel-backend host-gw" ]
+              )
+              ++ (optional cfg.disableKubeProxy "--disable-kube-proxy")
+              ++ (optional (cfg.apiServerArgs != "") (toString (map (s: "--kube-apiserver-arg ${s}") cfg.apiServerArgs)))
+            ) else [ ]
+          )
+        );
 
       system.activationScripts = mkIf cfg.zfs {
         sbinZfs = {
